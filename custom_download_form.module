@@ -1,0 +1,202 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function custom_download_form_menu() {
+  $items = array();
+  $items['admin/config/content/custom_download_form'] = array(
+    'title' => 'custom download form',
+    'description' => 'Configuration for custom download form module',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('_custom_download_form_settings'),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+  return $items;
+}
+
+function _custom_download_form_settings($form, &$form_state) {
+  $form['custom_download_form_email'] = array(
+    '#type' => 'emailfield',
+    '#title' => t('Email addrees'),
+    '#default_value' => variable_get('custom_download_form_email', ''),
+    '#required' => TRUE,
+  );
+  $form['custom_download_form_email_subject'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Email subject'),
+    '#default_value' => variable_get('custom_download_form_email_subject', ''),
+    '#required' => TRUE,
+  );
+  $form['custom_download_form_file_field_machine_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('File field machine name'),
+    '#default_value' => variable_get('custom_download_form_file_field_machine_name', ''),
+    '#required' => TRUE,
+  );
+  return system_settings_form($form);
+}
+
+function custom_download_form_form($form, &$form_state) {
+  $node = menu_get_object();
+  // Name
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Name'),
+    '#title_display' => 'invisible',
+    '#required' => true,
+    '#placeholder' => t('Name*'),
+    '#attributes' => array('required' => 'required'),
+  );
+  // Email
+  $form['email'] = array(
+    '#type' => 'emailfield',
+    '#title' => t('Email'),
+    '#title_display' => 'invisible',
+    '#required' => true,
+    '#placeholder' => t('Email*'),
+    '#attributes' => array('required' => 'required'),
+  );
+  // Phone Number
+  $form['phone_number'] = array(
+    '#type' => 'telfield',
+    '#title' => t('Phone Number'),
+    '#title_display' => 'invisible',
+    '#required' => false,
+    '#placeholder' => t('Phone Number'),
+  );
+  // Organization
+  $form['organization'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Organization'),
+    '#title_display' => 'invisible',
+    '#placeholder' => t('Organization'),
+    '#required' => false,
+  );
+  $form['nid'] = array(
+    '#type' => 'hidden',
+    '#default_value' => $node ? $node->nid : '',
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('DOWNLOAD'),
+    '#attributes' => array(
+      'class' => array('button-primary'),
+    ),
+    '#prefix' => '<div class="form-actions">',
+    '#suffix' => '</div>',
+  );
+  $form['#attributes']['class'][] = 'download-form';
+  return $form;
+}
+
+function custom_download_form_form_submit($form, &$form_state) {
+  $to = variable_get('custom_download_form_email');
+  $subject = variable_get('custom_download_form_email_subject');
+  $name = check_plain($form_state['values']['name']);
+  $email = check_plain($form_state['values']['email']);
+  $phone_number = check_plain($form_state['values']['phone_number']);
+  $organization = check_plain($form_state['values']['organization']);
+  if ($to && $subject) {
+    $message = 'Name: ' . $name . "\r\n";
+    $message .= 'Email: ' . $email . "\r\n";
+    $message .= 'Phone Number: ' . $phone_number . "\r\n";
+    $message .= 'Organization: ' . $organization;
+    mail($to, $subject, $message);
+  }
+  $nid = check_plain($form_state['values']['nid']);
+  $file_field_machine_name = trim(variable_get('custom_download_form_file_field_machine_name'));
+  if ($nid && $file_field_machine_name) {
+    $node = node_load($nid);
+    if ($file_field = field_get_items('node', $node, $file_field_machine_name)) {
+      $uri = $file_field[0]['uri'];
+      $filename = file_uri_scheme($uri) ? file_stream_wrapper_uri_normalize($uri) : file_build_uri($uri);
+      if (file_exists($filename)) {
+        header("Content-type: application/octet-stream");
+        header('Content-Disposition: attachment; filename='.basename($filename));            
+        header('Content-Length: ' . filesize($filename));
+        readfile($filename);
+        exit;
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function custom_download_form_block_info() {
+  $blocks = array();
+  $blocks['custom_download_form_block'] = array(
+    'info' => t('custom download form'),
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_configure().
+ */
+function custom_download_form_block_configure($delta='') {
+  $form = array();
+  switch($delta) {
+    case 'custom_download_form_block' :
+      $form['text_body'] = array(
+        '#type' => 'text_format',
+        '#title' => t('Block text'),
+        '#default_value' => variable_get('custom_download_form_block_text', ''),
+      );
+      break;
+  }
+  return $form;
+}
+
+/**
+ * Implements hook_block_save().
+ */
+function custom_download_form_block_save($delta = '', $edit = array()) {
+  switch($delta) {
+    case 'custom_download_form_block' :
+      variable_set('custom_download_form_block_text', filter_xss_admin($edit['text_body']['value']));
+      break;
+  }
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function custom_download_form_block_view($delta='') {
+  $block = array();
+  switch($delta) {
+    case 'custom_download_form_block' :
+      $block['content'] = _custom_download_form_block_block_view();
+      break;
+  }
+  return $block;
+}
+
+function _custom_download_form_block_block_view() {
+  $text = variable_get('custom_download_form_block_text', '');
+  $form_array = drupal_get_form('custom_download_form_form');
+  $block = array(
+    'message' => array(
+      '#type' => 'markup',
+      '#markup' => check_markup($text, 'full_html'),
+    ),
+    'form' => array(
+      '#type' => 'markup',
+      '#markup' => render($form_array),
+    ),
+  );
+  return $block;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function custom_download_form_uninstall() {
+  variable_del('custom_download_form_email');
+  variable_del('custom_download_form_email_subject');
+  variable_del('custom_download_form_file_field_machine_name');
+  variable_del('custom_download_form_block_text');
+}

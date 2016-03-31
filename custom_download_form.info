@@ -1,6 +1,6 @@
 name = Custom download form
 description = Provides PDF download form in block
 core = 7.x
-package = Custom
+package = Custom modules
 dependencies[] = elements
 configure = admin/config/content/custom_download_form

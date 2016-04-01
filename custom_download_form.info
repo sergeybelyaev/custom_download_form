@@ -1,4 +1,4 @@
-name = Custom download form
+name = Custom download form moduel
 description = Provides file download form in block
 core = 7.x
 package = Custom modules

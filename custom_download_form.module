@@ -190,13 +190,3 @@ function _custom_download_form_block_block_view() {
   );
   return $block;
 }
-
-/**
- * Implements hook_uninstall().
- */
-function custom_download_form_uninstall() {
-  variable_del('custom_download_form_email');
-  variable_del('custom_download_form_email_subject');
-  variable_del('custom_download_form_file_field_machine_name');
-  variable_del('custom_download_form_block_text');
-}
